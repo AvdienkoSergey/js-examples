@@ -1,20 +1,33 @@
-const checkType = (expectedType) => (value) => {
-  if (typeof expectedType === 'string') {
-    if (typeof value !== expectedType) {
-      throw new TypeError(
-        `Expected type ${expectedType} but got ${typeof value}`
-      )
+const checkType = (typeDef) => (obj) => {
+  const isType = (typeDef, obj) => {
+    if (typeof typeDef === 'string') {
+      return typeof obj === typeDef
+    } else if (typeDef instanceof Function) {
+      return obj instanceof typeDef || typeof obj === typeDef.name.toLowerCase()
+    } else {
+      throw new TypeError('Type not supported')
     }
-  } else if (expectedType instanceof Function) {
-    if (!(value instanceof expectedType)) {
-      throw new TypeError(
-        `Expected instance of ${expectedType.name} but got ${value.constructor.name}`
-      )
-    }
-  } else {
-    throw new TypeError('Type not supported')
   }
-  return value
+
+  if (!isType(typeDef, obj)) {
+    let type = typeof obj
+    throw new TypeError(
+      `Type mismatch. Expected [${typeDef}] but found [${type}]`
+    )
+  }
+
+  return obj
+}
+
+const autoCurry = (fn) => {
+  const curried = (...args) => {
+    if (args.length >= fn.length) {
+      return fn.apply(null, args)
+    } else {
+      return (...moreArgs) => curried.apply(null, args.concat(moreArgs))
+    }
+  }
+  return curried
 }
 
 const Tuple = function (/** Типы */) {
@@ -53,13 +66,41 @@ const Tuple = function (/** Типы */) {
   return _T
 }
 
-// Пример использования
+/** Пример 1 */
 const Person = Tuple('string', 'number')
 
 const person = new Person('Alice', 30)
 
 try {
   const invalidPerson = new Person('Alice', '30') // Ошибка: Expected type number but got string
+} catch (e) {
+  console.error(e.message)
+}
+
+/** Пример 2 */
+console.log(checkType(Date)(new Date()))
+
+/** Пример 3 */
+const curriedCheckType = autoCurry(checkType)
+console.log(curriedCheckType(String)('Test'))
+
+// Пример использования autoCurry для проверки трех типов
+const checkThreeTypes = (type1, type2, type3, val1, val2, val3) => {
+  curriedCheckType(type1)(val1)
+  curriedCheckType(type2)(val2)
+  curriedCheckType(type3)(val3)
+  return [val1, val2, val3]
+}
+
+const checkTypes = autoCurry(checkThreeTypes)
+try {
+  console.log(checkTypes(String)(Number)(Boolean)('Test')(123)(true)) // ['Test', 123, true]
+} catch (e) {
+  console.error(e.message)
+}
+
+try {
+  console.log(checkTypes(String)(Number)(Boolean)('Test')(123)('false')) // Ошибка: Expected [function Boolean] but found [string]
 } catch (e) {
   console.error(e.message)
 }
